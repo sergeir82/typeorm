@@ -7,8 +7,10 @@ export class RandomGenerator {
      * @returns A version 4 UUID string
      */
     static uuidv4(): string {
+        const crypto = globalThis.crypto as typeof globalThis.crypto | undefined
+
         // Try native crypto.randomUUID() (available in Node.js 19+ and modern browsers)
-        const uuid = globalThis.crypto?.randomUUID?.()
+        const uuid = crypto?.randomUUID?.()
         if (uuid) {
             return uuid
         }
@@ -17,8 +19,8 @@ export class RandomGenerator {
         // Based on RFC 4122 version 4 UUID specification
         const randomBytes = new Uint8Array(16)
 
-        if (globalThis.crypto?.getRandomValues) {
-            globalThis.crypto.getRandomValues(randomBytes)
+        if (crypto?.getRandomValues) {
+            crypto.getRandomValues(randomBytes)
         } else {
             // Fallback for React Native/Hermes and environments without crypto support
             // Hermes (React Native's JavaScript engine) does not provide crypto APIs
@@ -50,16 +52,7 @@ export class RandomGenerator {
     }
 
     /**
-     *  discuss at: http://locutus.io/php/sha1/
-     * original by: Webtoolkit.info (http://www.webtoolkit.info/)
-     * improved by: Michael White (http://getsprink.com)
-     * improved by: Kevin van Zonneveld (http://kvz.io)
-     *    input by: Brett Zamir (http://brett-zamir.me)
-     *      note 1: Keep in mind that in accordance with PHP, the whole string is buffered and then
-     *      note 1: hashed. If available, we'd recommend using Node's native crypto modules directly
-     *      note 1: in a steaming fashion for faster and more efficient hashing
-     *   example 1: sha1('Kevin van Zonneveld')
-     *   returns 1: '54916d2e62f65b3afa6e192e6a601cdbe5cb5897'
+     * Standard-conforming SHA-1 polyfill, based on http://locutus.io/php/sha1/
      *
      * @param str String to be hashed.
      * @returns SHA-1 hex digest

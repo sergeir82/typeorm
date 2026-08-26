@@ -24,8 +24,8 @@ jobs:
     outputs:
       changes: ${{ steps.detect-changes.outputs.changes }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: dorny/paths-filter@v4
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         id: detect-changes
         with:
           filters: |
@@ -48,7 +48,7 @@ jobs:
     if: needs.detect-changes.outputs.changes != '[]'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
       - uses: ./.github/actions/setup-node
@@ -74,4 +74,4 @@ jobs:
         working-directory: packages/codemod
 
       # publish
-      - run: pnpm exec pkg-pr-new publish ${{ env.PACKAGES }} --template='./sample/playground'
+      - run: pnpm exec pkg-pr-new publish ${{ env.PACKAGES }} --template='./playground'

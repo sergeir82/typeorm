@@ -134,8 +134,7 @@ export class Repository<Entity extends ObjectLiteral> {
      */
     create(
         plainEntityLikeOrPlainEntityLikes?:
-            | DeepPartial<Entity>
-            | DeepPartial<Entity>[],
+            DeepPartial<Entity> | DeepPartial<Entity>[],
     ): Entity | Entity[] {
         return this.manager.create(
             this.metadata.target as any,
@@ -363,8 +362,7 @@ export class Repository<Entity extends ObjectLiteral> {
      */
     insert(
         entity:
-            | QueryDeepPartialEntity<Entity>
-            | QueryDeepPartialEntity<Entity>[],
+            QueryDeepPartialEntity<Entity> | QueryDeepPartialEntity<Entity>[],
     ): Promise<InsertResult> {
         return this.manager.insert(this.metadata.target as any, entity)
     }
@@ -433,8 +431,7 @@ export class Repository<Entity extends ObjectLiteral> {
      */
     upsert(
         entityOrEntities:
-            | QueryDeepPartialEntity<Entity>
-            | QueryDeepPartialEntity<Entity>[],
+            QueryDeepPartialEntity<Entity> | QueryDeepPartialEntity<Entity>[],
         conflictPathsOrOptions: string[] | UpsertOptions<Entity>,
     ): Promise<InsertResult> {
         return this.manager.upsert(
@@ -725,7 +722,10 @@ export class Repository<Entity extends ObjectLiteral> {
      * @param parameters
      * @see [Official docs](https://typeorm.io/repository-api) for examples.
      */
-    query<T = any>(query: string, parameters?: any[]): Promise<T> {
+    query<T = any>(
+        query: string,
+        parameters?: any[] | ObjectLiteral,
+    ): Promise<T> {
         return this.manager.query(query, parameters)
     }
 

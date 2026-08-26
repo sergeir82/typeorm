@@ -1,5 +1,6 @@
 import type { DataSource } from "../../data-source/DataSource"
-import { TypeORMError } from "../../error"
+import { DriverPackageNotInstalledError, TypeORMError } from "../../error"
+import { PlatformTools } from "../../platform/PlatformTools"
 import type { QueryRunner } from "../../query-runner/QueryRunner"
 import { AbstractSqliteDriver } from "../sqlite-abstract/AbstractSqliteDriver"
 import type { ExpoDataSourceOptions } from "./ExpoDataSourceOptions"
@@ -10,12 +11,7 @@ export class ExpoDriver extends AbstractSqliteDriver {
 
     constructor(dataSource: DataSource) {
         super(dataSource)
-
-        if (this.isLegacyDriver) {
-            throw new TypeORMError("Legacy Expo driver is not supported.")
-        }
-
-        this.sqlite = this.options.driver
+        this.loadDependencies()
     }
 
     async disconnect(): Promise<void> {
@@ -26,7 +22,6 @@ export class ExpoDriver extends AbstractSqliteDriver {
 
     createQueryRunner(): QueryRunner {
         this.queryRunner ??= new ExpoQueryRunner(this)
-
         return this.queryRunner
     }
 
@@ -38,7 +33,25 @@ export class ExpoDriver extends AbstractSqliteDriver {
         return this.databaseConnection
     }
 
-    private get isLegacyDriver(): boolean {
-        return !("openDatabaseAsync" in this.options.driver)
+    /**
+     * If driver dependency is not given explicitly, then try to load it via "require".
+     */
+    protected loadDependencies(): void {
+        try {
+            this.sqlite =
+                this.options.driver ?? PlatformTools.load("expo-sqlite")
+        } catch {
+            throw new DriverPackageNotInstalledError(
+                "Expo SQLite",
+                "expo-sqlite",
+            )
+        }
+
+        // The modern Expo SQLite API that TypeORM supports exposes `openDatabaseAsync` as a function
+        if (typeof this.sqlite.openDatabaseAsync !== "function") {
+            throw new TypeORMError(
+                `The provided Expo SQLite client is not supported. Please upgrade your Expo SDK to v52 or higher!`,
+            )
+        }
     }
 }

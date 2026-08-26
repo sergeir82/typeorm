@@ -485,8 +485,7 @@ export class DataSource {
     ): Promise<T>
     async transaction<T>(
         isolationOrRunInTransaction:
-            | IsolationLevel
-            | ((entityManager: EntityManager) => Promise<T>),
+            IsolationLevel | ((entityManager: EntityManager) => Promise<T>),
         runInTransactionParam?: (entityManager: EntityManager) => Promise<T>,
     ): Promise<any> {
         return this.manager.transaction(
@@ -506,7 +505,7 @@ export class DataSource {
      */
     async query<T = any>(
         query: string,
-        parameters?: any[],
+        parameters?: any[] | ObjectLiteral,
         queryRunner?: QueryRunner,
     ): Promise<T> {
         if (InstanceChecker.isMongoEntityManager(this.manager))

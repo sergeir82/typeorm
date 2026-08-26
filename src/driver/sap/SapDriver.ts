@@ -27,11 +27,7 @@ import type { IsolationLevel } from "../types/IsolationLevel"
 import type { UpsertType } from "../types/UpsertType"
 import type { SapDataSourceOptions } from "./SapDataSourceOptions"
 import { SapQueryRunner } from "./SapQueryRunner"
-/**
- * Organizes communication with SAP Hana DBMS.
- *
- * todo: looks like there is no built in support for connection pooling, we need to figure out something
- */
+
 export class SapDriver implements Driver {
     // -------------------------------------------------------------------------
     // Static Properties
@@ -887,7 +883,9 @@ export class SapDriver implements Driver {
                 tableColumn.isUnique !==
                     this.normalizeIsUnique(columnMetadata) ||
                 (columnMetadata.generationStrategy !== "uuid" &&
-                    tableColumn.isGenerated !== columnMetadata.isGenerated)
+                    tableColumn.isGenerated !== columnMetadata.isGenerated) ||
+                (tableColumn.asExpression ?? "").trim() !==
+                    (columnMetadata.asExpression ?? "").trim()
             )
         })
     }

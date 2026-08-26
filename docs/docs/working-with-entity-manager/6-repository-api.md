@@ -343,7 +343,16 @@ const count = await repository.count({
         firstName: "Timber",
     },
 })
+
+const distinctCount = await repository.count({
+    select: {
+        firstName: true,
+    },
+})
 ```
+
+When `select` is provided, counts distinct combinations of selected columns, including selected relation columns when paired with `relations`.
+If `select` is not provided, default count behavior is unchanged.
 
 - `countBy` - Counts entities that match `FindOptionsWhere`. Useful for pagination.
 
@@ -487,6 +496,13 @@ const rawData = await repository.query(
 const rawData = await repository.query(
     "SELECT * FROM USERS WHERE name = @0 and age = @1",
     ["John", 24],
+)
+
+// mysql2 additionally supports named placeholders
+// when extra.namedPlaceholders is true
+const rawData = await repository.query(
+    "SELECT * FROM USERS WHERE name = :name and age = :age",
+    { name: "John", age: 24 },
 )
 ```
 

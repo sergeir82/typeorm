@@ -44,6 +44,12 @@ import { escapeRegExp } from "../util/escapeRegExp"
 // .loadAndMap("post.categories", Category, qb => ...)
 
 /**
+ * Query types that mutate rows and therefore must not run with an empty WHERE
+ * that a caller intended to filter on.
+ */
+const WRITE_QUERY_TYPES = ["update", "delete", "soft-delete", "restore"]
+
+/**
  * Allows to build complex sql queries in a fashion way and execute those queries.
  */
 export abstract class QueryBuilder<Entity extends ObjectLiteral> {
@@ -196,14 +202,10 @@ export abstract class QueryBuilder<Entity extends ObjectLiteral> {
     ): SelectQueryBuilder<Entity> {
         this.expressionMap.queryType = "select"
         if (Array.isArray(selection)) {
-            for (const s of selection) {
-                this.assertNoSemicolon(s, "select")
-            }
             this.expressionMap.selects = selection.map((selection) => ({
                 selection: selection,
             }))
         } else if (selection) {
-            this.assertNoSemicolon(selection, "select")
             this.expressionMap.selects = [
                 { selection: selection, aliasName: selectionAliasName },
             ]
@@ -892,6 +894,23 @@ export abstract class QueryBuilder<Entity extends ObjectLiteral> {
             this.expressionMap.wheres,
         )
 
+        // A write operation whose provided WHERE renders empty ("1=1") would
+        // silently affect every row. Reject it instead of emitting an unfiltered
+        // statement — this also covers criteria that only look non-empty at the
+        // top level but expand to zero predicates (e.g. a relation key whose
+        // value is a keyless object). Build the query without a WHERE to
+        // intentionally affect all rows.
+        if (
+            WRITE_QUERY_TYPES.includes(this.expressionMap.queryType) &&
+            this.expressionMap.wheres.length > 0 &&
+            (whereExpression.length === 0 || whereExpression === "1=1")
+        ) {
+            throw new TypeORMError(
+                `Empty criteria(s) are not allowed for the ${this.expressionMap.queryType} operation. ` +
+                    `Provide a WHERE condition, or build the query without one to intentionally affect all rows.`,
+            )
+        }
+
         if (whereExpression.length > 0 && whereExpression !== "1=1") {
             conditionsArray.push(whereExpression)
         }
@@ -1194,7 +1213,9 @@ export abstract class QueryBuilder<Entity extends ObjectLiteral> {
         if (!this.hasCommonTableExpressions()) {
             return ""
         }
-        const databaseRequireRecusiveHint =
+
+        let hasRecursiveCTEs = false
+        const doesDbRequireRecursiveHint =
             this.dataSource.driver.cteCapabilities.requiresRecursiveHint
 
         const cteStrings = this.expressionMap.commonTableExpressions.map(
@@ -1238,10 +1259,9 @@ export abstract class QueryBuilder<Entity extends ObjectLiteral> {
                     }
                     cteHeader += `(${escapedColumnNames.join(", ")})`
                 }
-                const recursiveClause =
-                    cte.options.recursive && databaseRequireRecusiveHint
-                        ? "RECURSIVE"
-                        : ""
+                if (cte.options.recursive) {
+                    hasRecursiveCTEs = true
+                }
                 let materializeClause = ""
                 if (
                     this.dataSource.driver.cteCapabilities.materializedHint &&
@@ -1253,7 +1273,6 @@ export abstract class QueryBuilder<Entity extends ObjectLiteral> {
                 }
 
                 return [
-                    recursiveClause,
                     cteHeader,
                     "AS",
                     materializeClause,
@@ -1264,7 +1283,10 @@ export abstract class QueryBuilder<Entity extends ObjectLiteral> {
             },
         )
 
-        return "WITH " + cteStrings.join(", ") + " "
+        const recursiveClause =
+            hasRecursiveCTEs && doesDbRequireRecursiveHint ? "RECURSIVE " : ""
+
+        return "WITH " + recursiveClause + cteStrings.join(", ") + " "
     }
 
     /**
@@ -1563,7 +1585,15 @@ export abstract class QueryBuilder<Entity extends ObjectLiteral> {
                         parameters.push(this.createParameter(v))
                     }
                 } else {
-                    parameters.push(this.createParameter(parameterValue.value))
+                    let value = parameterValue.value
+                    if (
+                        parameterValue.type === "jsonContains" &&
+                        value !== null &&
+                        typeof value === "object"
+                    ) {
+                        value = JSON.stringify(value)
+                    }
+                    parameters.push(this.createParameter(value))
                 }
             }
 
@@ -1716,20 +1746,11 @@ export abstract class QueryBuilder<Entity extends ObjectLiteral> {
         return this.expressionMap.commonTableExpressions.length > 0
     }
 
-    protected assertNoSemicolon(value: string, context: string): void {
-        if (value.includes(";")) {
-            throw new TypeORMError(
-                `Semicolons are not allowed in ${context} to prevent SQL statement stacking.`,
-            )
-        }
-    }
-
     protected validateOrderByCondition(sort: OrderByCondition): void {
         const validOrders = ["ASC", "DESC"]
         const validNulls = ["NULLS FIRST", "NULLS LAST"]
 
         for (const [key, value] of Object.entries(sort)) {
-            this.assertNoSemicolon(key, "orderBy sort key")
             if (typeof value === "string") {
                 if (!validOrders.includes(value))
                     throw new TypeORMError(
@@ -1753,5 +1774,31 @@ export abstract class QueryBuilder<Entity extends ObjectLiteral> {
                 )
             }
         }
+    }
+
+    protected normalizeNumber(num: any) {
+        if (typeof num === "number" || num === undefined || num === null)
+            return num
+
+        return Number(num)
+    }
+
+    /**
+     * Normalizes and validates a numeric query parameter,
+     * throwing if the result is NaN.
+     *
+     * @param label
+     * @param num
+     */
+    protected validateNumericInput(
+        label: string,
+        num: number | undefined,
+    ): number | undefined {
+        const normalized = this.normalizeNumber(num)
+        if (normalized !== undefined && isNaN(normalized))
+            throw new TypeORMError(
+                `Provided "${label}" value is not a number. Please provide a numeric value.`,
+            )
+        return normalized
     }
 }

@@ -1,3 +1,5 @@
+import type { ObjectLiteral } from "../../common/ObjectLiteral"
+import { NamedPlaceholdersNotSupportedError } from "../../error/NamedPlaceholdersNotSupportedError"
 import { QueryFailedError } from "../../error/QueryFailedError"
 import { QueryRunnerAlreadyReleasedError } from "../../error/QueryRunnerAlreadyReleasedError"
 import { QueryResult } from "../../query-runner/QueryResult"
@@ -81,10 +83,12 @@ export class SqljsQueryRunner extends AbstractSqliteQueryRunner {
      */
     async query(
         query: string,
-        parameters: any[] = [],
+        parameters: any[] | ObjectLiteral = [],
         useStructuredResult = false,
     ): Promise<any> {
         if (this.isReleased) throw new QueryRunnerAlreadyReleasedError()
+        if (parameters && !Array.isArray(parameters))
+            throw new NamedPlaceholdersNotSupportedError()
 
         const command = query.trim().split(" ", 1)[0]
 
@@ -107,6 +111,12 @@ export class SqljsQueryRunner extends AbstractSqliteQueryRunner {
                 statement.bind(parameters)
             }
 
+            const records: any[] = []
+
+            while (statement.step()) {
+                records.push(statement.getAsObject())
+            }
+
             // log slow queries if maxQueryExecution time is set
             const maxQueryExecutionTime =
                 this.driver.options.maxQueryExecutionTime
@@ -123,12 +133,6 @@ export class SqljsQueryRunner extends AbstractSqliteQueryRunner {
                     parameters,
                     this,
                 )
-
-            const records: any[] = []
-
-            while (statement.step()) {
-                records.push(statement.getAsObject())
-            }
 
             this.broadcaster.broadcastAfterQueryEvent(
                 broadcasterResult,
